@@ -20,6 +20,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
@@ -42,9 +43,12 @@ import javax.annotation.Nullable;
 
 public class MainActivity extends AppCompatActivity {
     private List<ListData>listData;
+    private SwipeRefreshLayout swipeRefreshLayout;
     private RecyclerView recyclerView;
+    private StorageReference data;
     private MyAdapter adapter;
     private ProgressBar mProgressCircle;
+    DocumentReference documentReference;
     FirebaseFirestore fStore;
     FirebaseAuth fAuth;
     String company;
@@ -66,18 +70,30 @@ public class MainActivity extends AppCompatActivity {
         toolbar.setLogo(R.drawable.ic_twotone_delete_24);
         setSupportActionBar(toolbar);
 
+        swipeRefreshLayout= findViewById(R.id.swipeRefreshLayout);
+        swipeRefreshLayout.setOnRefreshListener(this::dataView);
+        dataView();
+
+
+
+
+    }
+
+    private void dataView() {
+        listData.clear();
+        swipeRefreshLayout.setRefreshing(true);
         fAuth = FirebaseAuth.getInstance();
         fStore = FirebaseFirestore.getInstance();
 
         storageReference = FirebaseStorage.getInstance().getReference();
         user = fAuth.getCurrentUser();
-        StorageReference data = storageReference.child("Users/"+fAuth.getCurrentUser().getUid());
-        DocumentReference documentReference = fStore.collection("Users").document(user.getUid());
+        data = storageReference.child("Users/"+fAuth.getCurrentUser().getUid());
+        documentReference = fStore.collection("Users").document(user.getUid());
         documentReference.addSnapshotListener(this, new EventListener<DocumentSnapshot>() {
             @Override
             public void onEvent(@Nullable DocumentSnapshot documentSnapshot, @Nullable FirebaseFirestoreException e) {
-                if(documentSnapshot.exists()){
-                    final DatabaseReference databaseReference= FirebaseDatabase.getInstance().getReference(documentSnapshot.getString("Company"));
+                if (documentSnapshot.exists()) {
+                    final DatabaseReference databaseReference = FirebaseDatabase.getInstance().getReference(documentSnapshot.getString("Company"));
                     databaseReference.addListenerForSingleValueEvent(new ValueEventListener() {
                         @Override
                         public void onDataChange(DataSnapshot dataSnapshot) {
@@ -85,12 +101,14 @@ public class MainActivity extends AppCompatActivity {
                                 for (DataSnapshot datasnapshot : dataSnapshot.getChildren()) {
                                     ListData list = datasnapshot.getValue(ListData.class);
                                     listData.add(list);
+
                                 }
                                 adapter = new MyAdapter(listData);
                                 recyclerView.setAdapter(adapter);
                                 mProgressCircle.setVisibility(View.INVISIBLE);
                             }
                             adapter.notifyDataSetChanged();
+                            swipeRefreshLayout.setRefreshing(false);
                         }
 
                         @Override
@@ -100,7 +118,7 @@ public class MainActivity extends AppCompatActivity {
                         }
                     });
 
-                }else {
+                } else {
                     Log.d("tag", "onEvent: Document do not exists");
                 }
             }
